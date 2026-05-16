@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   calcBMR,
@@ -9,6 +9,8 @@ import {
   suggestKcalTarget,
   fiberTarget,
   yearsBetween,
+  estimateBodyFat,
+  BF_CATEGORY_LABEL,
   ACTIVITY_LABEL,
   DIET_PRESETS,
   type ActivityLevel,
@@ -18,6 +20,7 @@ import {
 } from '@/lib/nutrition';
 import { saveProfile } from './actions';
 import type { User } from '@prisma/client';
+import { Calculator } from 'lucide-react';
 
 interface Props {
   user: User | null;
@@ -44,6 +47,26 @@ export function ProfileForm({ user }: Props) {
   // última medida para os cálculos
   const [latestWeight, setLatestWeight] = useState('');
   const [latestBF, setLatestBF] = useState('');
+
+  // circunferências para estimativa de %BF
+  const [abdomen, setAbdomen] = useState('');
+  const [waist, setWaist] = useState('');
+  const [hip, setHip] = useState('');
+  const [showBFCalc, setShowBFCalc] = useState(false);
+
+  // estimativa de %BF (Taylor et al. 2024)
+  const bfEstimate = useMemo(() => {
+    const w = parseFloat(latestWeight);
+    const abd = parseFloat(abdomen);
+    if (!w || !abd || w < 30 || abd < 40) return null;
+    return estimateBodyFat({
+      sex: form.sex as 'M' | 'F',
+      weightKg: w,
+      abdomenCm: abd,
+      hipCm: parseFloat(hip) || undefined,
+      waistCm: parseFloat(waist) || undefined,
+    });
+  }, [form.sex, latestWeight, abdomen, hip, waist]);
 
   // cálculos ao vivo
   const [calc, setCalc] = useState<{
@@ -136,6 +159,79 @@ export function ProfileForm({ user }: Props) {
             <input className="input" type="number" value={latestBF} onChange={e => setLatestBF(e.target.value)} step={0.1} min={3} max={60} placeholder="ex: 22" />
             <p className="text-xs text-ink-400 mt-1">Com %BF usa Katch-McArdle (mais preciso)</p>
           </div>
+        </div>
+
+        {/* Calculadora de %BF a partir de circunferências */}
+        <div className="rounded-xl border border-brand-200 bg-brand-50/40 p-3">
+          <button
+            type="button"
+            onClick={() => setShowBFCalc(v => !v)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold text-brand-800">
+              <Calculator size={16} /> Não sabe seu % de gordura? Calcule aqui
+            </span>
+            <span className="text-ink-400 text-xs">{showBFCalc ? '−' : '+'}</span>
+          </button>
+
+          {showBFCalc && (
+            <div className="mt-3 space-y-3 border-t border-brand-200 pt-3">
+              <p className="text-xs text-ink-500">
+                Equação de <strong>Taylor et al. 2024</strong> (US Army, validada com DXA em 1.904 pessoas). Quanto mais medidas, mais precisa.
+              </p>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="label text-xs">Abdômen (cm) *</label>
+                  <input className="input text-sm" type="number" value={abdomen} onChange={e => setAbdomen(e.target.value)} step={0.5} placeholder="no umbigo" />
+                </div>
+                <div>
+                  <label className="label text-xs">Cintura (cm)</label>
+                  <input className="input text-sm" type="number" value={waist} onChange={e => setWaist(e.target.value)} step={0.5} placeholder="mais estreita" />
+                </div>
+                <div>
+                  <label className="label text-xs">Quadril (cm)</label>
+                  <input className="input text-sm" type="number" value={hip} onChange={e => setHip(e.target.value)} step={0.5} placeholder="mais largo" />
+                </div>
+              </div>
+
+              <div className="rounded-lg bg-white border border-ink-200 p-2.5 text-xs text-ink-600 space-y-1">
+                <p><strong>Como medir (fita métrica flexível):</strong></p>
+                <p>• <strong>Abdômen:</strong> ao nível do umbigo, em pé, relaxado, ao final de uma expiração normal.</p>
+                <p>• <strong>Cintura:</strong> parte mais estreita do tronco (acima do umbigo, abaixo das costelas).</p>
+                <p>• <strong>Quadril:</strong> ponto mais largo do quadril.</p>
+              </div>
+
+              {!bfEstimate && (
+                <p className="text-xs text-ink-400">💡 Preencha peso (acima) + abdômen para estimar.</p>
+              )}
+
+              {bfEstimate && (
+                <div className={`rounded-lg border p-3 ${
+                  bfEstimate.category === 'essencial' ? 'border-blue-200 bg-blue-50' :
+                  bfEstimate.category === 'atletico'  ? 'border-brand-300 bg-brand-100' :
+                  bfEstimate.category === 'fitness'   ? 'border-green-200 bg-green-50' :
+                  bfEstimate.category === 'aceitavel' ? 'border-yellow-200 bg-yellow-50' :
+                  'border-red-200 bg-red-50'
+                }`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-2xl font-bold leading-tight">{bfEstimate.bodyFatPct}%</p>
+                      <p className="text-xs text-ink-500">{BF_CATEGORY_LABEL[bfEstimate.category]} · equação de {bfEstimate.sites}-sítio{bfEstimate.sites > 1 ? 's' : ''}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setLatestBF(bfEstimate.bodyFatPct.toString())}
+                      className="btn-primary text-xs py-2 px-3"
+                    >
+                      Usar {bfEstimate.bodyFatPct}% ↑
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-ink-500 mt-2">Margem de erro ≈ ±3-4 %BF.</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Resultado ao vivo */}
