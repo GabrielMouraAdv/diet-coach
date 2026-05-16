@@ -1,74 +1,89 @@
 import { prisma } from './db';
 import type { Food } from '@prisma/client';
 
-/**
- * Normaliza string para matching: minúsculas, sem acentos, sem pontuação.
- */
+// Stopwords em PT-BR — ignoradas no matching
+const STOPWORDS = new Set([
+  'de', 'do', 'da', 'dos', 'das', 'em', 'no', 'na', 'nos', 'nas',
+  'com', 'sem', 'para', 'por', 'pra', 'pro', 'a', 'o', 'as', 'os',
+  'um', 'uma', 'uns', 'umas', 'e', 'ou',
+]);
+
+/** Normaliza: minúsculas, sem acentos, sem pontuação. */
 function normalize(s: string): string {
   return s
     .toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '') // remove acentos
-    .replace(/[,;()\[\]]/g, ' ')                        // remove pontuação
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[,;()\[\]\-\.]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-/**
- * Score de similaridade entre query e nome de alimento.
- * Quanto mais palavras da query aparecem no nome, maior o score.
- * Penaliza nomes muito longos (mais palavras = menos específico).
- */
-function score(queryNorm: string, nameNorm: string): number {
-  const qWords = queryNorm.split(' ').filter(w => w.length > 2);
-  if (qWords.length === 0) return 0;
-
-  let matched = 0;
-  for (const w of qWords) {
-    if (nameNorm.includes(w)) matched++;
-  }
-  if (matched === 0) return 0;
-
-  // % de palavras da query que apareceram, com bônus se for a maioria
-  const ratio = matched / qWords.length;
-  const lengthPenalty = 1 / Math.max(1, nameNorm.split(' ').length / 3);
-
-  return ratio * lengthPenalty;
+/** Quebra em palavras significativas (sem stopwords, mínimo 3 chars). */
+function tokenize(s: string): string[] {
+  return normalize(s).split(' ').filter(w => w.length >= 3 && !STOPWORDS.has(w));
 }
 
 /**
- * Busca o melhor match de alimento pelo nome livre.
- * Retorna null se nenhum nome bater pelo menos 50% das palavras.
+ * Score bidirecional entre query e nome do alimento.
+ *
+ * Para queries multi-palavra: usa MÍNIMO entre (query→food) e (food→query),
+ * exigindo pelo menos 50% de match em AMBAS direções. Isso bloqueia matches
+ * onde só uma palavra coincidentemente bate (ex: "café preto" vs "feijão preto").
+ *
+ * Para queries de 1 palavra: aceita match simples (contains) + penaliza
+ * nomes muito longos para preferir o alimento mais comum.
  */
-export async function findFoodByName(name: string): Promise<Food | null> {
-  const qNorm = normalize(name);
+function score(query: string, foodName: string): number {
+  const qWords = tokenize(query);
+  const fWords = tokenize(foodName);
+  if (qWords.length === 0 || fWords.length === 0) return 0;
 
-  // Pega todos os alimentos (são apenas ~70 — barato)
+  if (qWords.length === 1) {
+    // 1 palavra: precisa estar dentro do nome
+    if (!fWords.some(w => w === qWords[0] || w.startsWith(qWords[0]))) return 0;
+    // Bônus se a palavra for a PRIMEIRA do nome
+    const headBonus = fWords[0].startsWith(qWords[0]) ? 0.3 : 0;
+    return 0.5 + headBonus + 0.2 / fWords.length;
+  }
+
+  // Multi-palavra: matching bidirecional
+  const qInF = qWords.filter(qw => fWords.some(fw => fw === qw || fw.startsWith(qw))).length;
+  const fInQ = fWords.filter(fw => qWords.some(qw => qw === fw || fw.startsWith(qw))).length;
+
+  const qRatio = qInF / qWords.length;       // % das palavras da query que aparecem no alimento
+  const fRatio = fInQ / fWords.length;       // % das palavras do alimento que aparecem na query
+  const minRatio = Math.min(qRatio, fRatio);
+
+  // Threshold mínimo: 50% em ambas direções
+  if (minRatio < 0.5) return 0;
+
+  // Score = média ponderada (favorece quando ambas as direções batem)
+  return (qRatio + fRatio) / 2;
+}
+
+/** Match único. Retorna null se nada passar do threshold. */
+export async function findFoodByName(name: string): Promise<Food | null> {
   const foods = await prisma.food.findMany();
   if (foods.length === 0) return null;
 
   let best: { food: Food; score: number } | null = null;
   for (const f of foods) {
-    const s = score(qNorm, normalize(f.name));
+    const s = score(name, f.name);
     if (s > 0 && (!best || s > best.score)) best = { food: f, score: s };
   }
 
-  if (!best || best.score < 0.5) return null;
-  return best.food;
+  return best?.food ?? null;
 }
 
-/**
- * Busca múltiplos alimentos em lote.
- * Retorna lista paralela com null para os não encontrados.
- */
+/** Match em lote — útil pra processar cardápio inteiro. */
 export async function findFoodsByNames(names: string[]): Promise<(Food | null)[]> {
   const foods = await prisma.food.findMany();
   return names.map(name => {
-    const qNorm = normalize(name);
     let best: { food: Food; score: number } | null = null;
     for (const f of foods) {
-      const s = score(qNorm, normalize(f.name));
+      const s = score(name, f.name);
       if (s > 0 && (!best || s > best.score)) best = { food: f, score: s };
     }
-    return best && best.score >= 0.5 ? best.food : null;
+    return best?.food ?? null;
   });
 }

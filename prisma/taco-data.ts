@@ -105,4 +105,18 @@ export const TACO_FOODS: TacoFood[] = [
   { externalId: 'T068', source: 'TACO', name: 'Tofu, firme', category: 'Leguminosas', kcal: 76, protein: 8.1, carb: 1.9, fat: 4.8, calcium: 290, iron: 2.7 },
   { externalId: 'T069', source: 'TACO', name: 'Queijo minas frescal', category: 'Leite e derivados', kcal: 264, protein: 17.4, carb: 3.2, fat: 20.2, calcium: 568, sodium: 430, servingLabel: '1 fatia (30g)', servingGrams: 30 },
   { externalId: 'T070', source: 'TACO', name: 'Requeijão light', category: 'Leite e derivados', kcal: 159, protein: 7.8, carb: 4.4, fat: 12.4, calcium: 220, sodium: 620, servingLabel: '1 colher sopa (30g)', servingGrams: 30 },
+
+  // ─── BEBIDAS E DIVERSOS ──────────────────────────────────────────────────
+  { externalId: 'T071', source: 'TACO', name: 'Café preparado, infusão 10%, sem açúcar', category: 'Bebidas', kcal: 9, protein: 0.7, carb: 0.9, fat: 0, servingLabel: '1 xícara (50ml)', servingGrams: 50 },
+  { externalId: 'T072', source: 'TACO', name: 'Chá mate, infusão sem açúcar', category: 'Bebidas', kcal: 3, protein: 0.1, carb: 0.6, fat: 0, servingLabel: '1 xícara (200ml)', servingGrams: 200 },
+  { externalId: 'T073', source: 'TACO', name: 'Leite integral', category: 'Leite e derivados', kcal: 60, protein: 2.9, carb: 4.3, fat: 3.2, calcium: 113, servingLabel: '1 copo (200ml)', servingGrams: 200 },
+  { externalId: 'T074', source: 'TACO', name: 'Pão francês', category: 'Panificados', kcal: 300, protein: 8.0, carb: 58.6, fat: 3.1, fiber: 2.3, sodium: 643, servingLabel: '1 unidade (50g)', servingGrams: 50 },
+  { externalId: 'T075', source: 'TACO', name: 'Manteiga com sal', category: 'Óleos e gorduras', kcal: 726, protein: 0.5, carb: 0.1, fat: 82.0, sodium: 579, servingLabel: '1 colher chá (5g)', servingGrams: 5 },
+  { externalId: 'T076', source: 'TACO', name: 'Margarina vegetal, 80% lipídios', category: 'Óleos e gorduras', kcal: 720, protein: 0.2, carb: 0.4, fat: 81.0, servingLabel: '1 colher chá (5g)', servingGrams: 5 },
+  { externalId: 'T077', source: 'TACO', name: 'Iogurte natural integral', category: 'Leite e derivados', kcal: 51, protein: 4.1, carb: 4.0, fat: 1.5, calcium: 143, servingLabel: '1 pote (170g)', servingGrams: 170 },
+  { externalId: 'T078', source: 'TACO', name: 'Mel de abelha', category: 'Açúcares e doces', kcal: 309, protein: 0.4, carb: 84.0, fat: 0, servingLabel: '1 colher sopa (15g)', servingGrams: 15 },
+  { externalId: 'T079', source: 'TACO', name: 'Açúcar refinado', category: 'Açúcares e doces', kcal: 387, protein: 0, carb: 99.5, fat: 0, servingLabel: '1 colher sopa (15g)', servingGrams: 15 },
+  { externalId: 'T080', source: 'TACO', name: 'Cuscuz de milho cozido', category: 'Cereais e derivados', kcal: 113, protein: 2.4, carb: 25.2, fat: 0.5, fiber: 1.5, servingLabel: '1 fatia (100g)', servingGrams: 100 },
+  { externalId: 'T081', source: 'TACO', name: 'Tapioca pronta com recheio (referência)', category: 'Cereais e derivados', kcal: 350, protein: 0.2, carb: 88.0, fat: 0.2, servingLabel: '1 unidade (60g)', servingGrams: 60 },
+  { externalId: 'T082', source: 'TACO', name: 'Banana prata, crua', category: 'Frutas', kcal: 98, protein: 1.3, carb: 26.0, fat: 0.1, fiber: 2.0, potassium: 358, servingLabel: '1 unidade (80g)', servingGrams: 80 },
 ];
