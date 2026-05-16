@@ -1,11 +1,14 @@
 import { prisma } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import { MedicamentosClient } from './MedicamentosClient';
+import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export default async function MedicamentosPage() {
-  const user = await prisma.user.findFirst();
+  const session = await getSession();
+  if (!session) redirect('/login');
+  const user = await prisma.user.findUnique({ where: { accountId: session.accountId } });
   if (!user) redirect('/perfil');
 
   const today = new Date(); today.setHours(0, 0, 0, 0);

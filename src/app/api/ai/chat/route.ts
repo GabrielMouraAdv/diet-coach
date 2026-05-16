@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { buildCoachSystemPrompt } from '@/lib/ai-context';
 
-export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 

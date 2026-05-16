@@ -1,11 +1,14 @@
 import { prisma } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import { EvolucaoClient } from './EvolucaoClient';
+import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export default async function EvolucaoPage() {
-  const user = await prisma.user.findFirst();
+  const session = await getSession();
+  if (!session) redirect('/login');
+  const user = await prisma.user.findUnique({ where: { accountId: session.accountId } });
   if (!user) redirect('/perfil');
 
   const measurements = await prisma.measurement.findMany({

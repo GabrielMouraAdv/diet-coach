@@ -1,11 +1,14 @@
 import { prisma } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import { ExamesClient } from './ExamesClient';
+import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ExamesPage() {
-  const user = await prisma.user.findFirst();
+  const session = await getSession();
+  if (!session) redirect('/login');
+  const user = await prisma.user.findUnique({ where: { accountId: session.accountId } });
   if (!user) redirect('/perfil');
 
   const labs = await prisma.labResult.findMany({

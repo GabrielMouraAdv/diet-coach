@@ -91,9 +91,14 @@ export function Sidebar() {
         <div className="flex-1 overflow-y-auto">
           <NavLinks />
         </div>
-        <div className="p-4 border-t">
+        <div className="p-4 border-t space-y-2">
+          <form action="/api/auth/logout" method="POST">
+            <button type="submit" className="w-full text-xs text-ink-400 hover:text-red-500 transition-colors py-1">
+              Sair da conta
+            </button>
+          </form>
           <p className="text-xs text-ink-400 text-center">
-            Informação não substitui orientação médica.
+            Não substitui orientação médica.
           </p>
         </div>
       </aside>

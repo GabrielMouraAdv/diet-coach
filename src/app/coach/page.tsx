@@ -3,9 +3,12 @@ export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import { CoachChat } from './CoachChat';
+import { getSession } from '@/lib/auth';
 
 export default async function CoachPage() {
-  const user = await prisma.user.findFirst();
+  const session = await getSession();
+  if (!session) redirect('/login');
+  const user = await prisma.user.findUnique({ where: { accountId: session.accountId } });
   if (!user) redirect('/perfil');
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] md:h-[calc(100vh-2rem)]">

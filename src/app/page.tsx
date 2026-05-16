@@ -9,11 +9,15 @@ import { CheatDayToggle } from '@/components/CheatDayToggle';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { MealSlotSummary } from '@/components/MealSlotSummary';
+import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Dashboard() {
-  const user = await prisma.user.findFirst();
+  const session = await getSession();
+  if (!session) redirect('/login');
+
+  const user = await prisma.user.findUnique({ where: { accountId: session.accountId } });
   if (!user) redirect('/perfil');
 
   const today = new Date();

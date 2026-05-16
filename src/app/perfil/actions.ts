@@ -1,6 +1,8 @@
 'use server';
 
 import { prisma } from '@/lib/db';
+import { getSession, createSession } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 import type { ActivityLevel, Goal, DietPreset, InsulinSensitivity } from '@/lib/nutrition';
 
 interface ProfileData {
@@ -23,7 +25,8 @@ interface ProfileData {
 }
 
 export async function saveProfile(data: ProfileData) {
-  const existing = await prisma.user.findFirst();
+  const session = await getSession();
+  if (!session) redirect('/login');
 
   const payload = {
     name: data.name,
@@ -42,29 +45,29 @@ export async function saveProfile(data: ProfileData) {
     fatGoalG: data.fatGoalG,
   };
 
+  const existing = await prisma.user.findUnique({ where: { accountId: session.accountId } });
+
   let user;
   if (existing) {
     user = await prisma.user.update({ where: { id: existing.id }, data: payload });
   } else {
-    user = await prisma.user.create({ data: payload });
+    // Cria perfil vinculado à conta (ex: admin criando seu próprio perfil)
+    user = await prisma.user.create({
+      data: { ...payload, accountId: session.accountId },
+    });
+    // Atualiza o userId na sessão
+    await createSession({ ...session, userId: user.id });
   }
 
-  // Salva medida inicial se peso foi informado
+  // Salva medida inicial se peso informado
   if (data.weightKg > 0) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
+    const today = new Date(); today.setHours(0, 0, 0, 0);
     const hasToday = await prisma.measurement.findFirst({
       where: { userId: user.id, date: { gte: today } },
     });
-
     if (!hasToday) {
       await prisma.measurement.create({
-        data: {
-          userId: user.id,
-          weightKg: data.weightKg,
-          bodyFatPct: data.bodyFatPct ?? undefined,
-        },
+        data: { userId: user.id, weightKg: data.weightKg, bodyFatPct: data.bodyFatPct ?? null },
       });
     }
   }
