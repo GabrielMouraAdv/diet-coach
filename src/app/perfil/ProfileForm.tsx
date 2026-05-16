@@ -180,7 +180,11 @@ export function ProfileForm({ user }: Props) {
                 Equação de <strong>Taylor et al. 2024</strong> (US Army, validada com DXA em 1.904 pessoas). Quanto mais medidas, mais precisa.
               </p>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="label text-xs">Peso (kg) *</label>
+                  <input className="input text-sm" type="number" value={latestWeight} onChange={e => setLatestWeight(e.target.value)} step={0.1} placeholder="80" />
+                </div>
                 <div>
                   <label className="label text-xs">Abdômen (cm) *</label>
                   <input className="input text-sm" type="number" value={abdomen} onChange={e => setAbdomen(e.target.value)} step={0.5} placeholder="no umbigo" />
@@ -202,11 +206,7 @@ export function ProfileForm({ user }: Props) {
                 <p>• <strong>Quadril:</strong> ponto mais largo do quadril.</p>
               </div>
 
-              {!bfEstimate && (
-                <p className="text-xs text-ink-400">💡 Preencha peso (acima) + abdômen para estimar.</p>
-              )}
-
-              {bfEstimate && (
+              {bfEstimate ? (
                 <div className={`rounded-lg border p-3 ${
                   bfEstimate.category === 'essencial' ? 'border-blue-200 bg-blue-50' :
                   bfEstimate.category === 'atletico'  ? 'border-brand-300 bg-brand-100' :
@@ -214,20 +214,25 @@ export function ProfileForm({ user }: Props) {
                   bfEstimate.category === 'aceitavel' ? 'border-yellow-200 bg-yellow-50' :
                   'border-red-200 bg-red-50'
                 }`}>
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2 mb-2">
                     <div>
-                      <p className="text-2xl font-bold leading-tight">{bfEstimate.bodyFatPct}%</p>
+                      <p className="text-3xl font-bold leading-tight">{bfEstimate.bodyFatPct}%</p>
                       <p className="text-xs text-ink-500">{BF_CATEGORY_LABEL[bfEstimate.category]} · equação de {bfEstimate.sites}-sítio{bfEstimate.sites > 1 ? 's' : ''}</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setLatestBF(bfEstimate.bodyFatPct.toString())}
-                      className="btn-primary text-xs py-2 px-3"
-                    >
-                      Usar {bfEstimate.bodyFatPct}% ↑
-                    </button>
                   </div>
-                  <p className="text-[10px] text-ink-500 mt-2">Margem de erro ≈ ±3-4 %BF.</p>
+                  <button
+                    type="button"
+                    onClick={() => setLatestBF(bfEstimate.bodyFatPct.toString())}
+                    className="btn-primary text-sm w-full py-2"
+                  >
+                    Usar {bfEstimate.bodyFatPct}% no campo de %BF ↑
+                  </button>
+                  <p className="text-[10px] text-ink-500 mt-2 text-center">Margem de erro ≈ ±3-4 %BF.</p>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-ink-300 bg-ink-50 p-3 text-center">
+                  <p className="text-sm text-ink-500">💡 Preencha <strong>peso</strong> + <strong>abdômen</strong> para ver o resultado.</p>
+                  <p className="text-xs text-ink-400 mt-1">O cálculo aparece automaticamente conforme você digita.</p>
                 </div>
               )}
             </div>
