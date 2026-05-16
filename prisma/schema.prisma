@@ -135,6 +135,7 @@ model Measurement {
   date         DateTime @default(now())
   weightKg     Float
   bodyFatPct   Float?
+  abdomenCm    Float?
   waistCm      Float?
   hipCm        Float?
   chestCm      Float?

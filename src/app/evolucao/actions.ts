@@ -5,8 +5,10 @@ import { revalidatePath } from 'next/cache';
 
 export async function saveMeasurement(data: {
   userId: string; date: string; weightKg: number;
-  bodyFatPct?: number | null; waistCm?: number | null; hipCm?: number | null;
-  chestCm?: number | null; armCm?: number | null; thighCm?: number | null; notes?: string;
+  bodyFatPct?: number | null;
+  abdomenCm?: number | null; waistCm?: number | null; hipCm?: number | null;
+  chestCm?: number | null; armCm?: number | null; thighCm?: number | null;
+  notes?: string;
 }) {
   await prisma.measurement.create({
     data: {
@@ -14,6 +16,7 @@ export async function saveMeasurement(data: {
       date: new Date(data.date + 'T12:00:00'),
       weightKg: data.weightKg,
       bodyFatPct: data.bodyFatPct ?? null,
+      abdomenCm: data.abdomenCm ?? null,
       waistCm: data.waistCm ?? null,
       hipCm: data.hipCm ?? null,
       chestCm: data.chestCm ?? null,

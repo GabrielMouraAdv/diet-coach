@@ -302,6 +302,112 @@ export function yearsBetween(birth: Date, ref: Date = new Date()): number {
   return years;
 }
 
+// ─── Estimativa de % Gordura Corporal ────────────────────────────────────────
+// Fonte: Taylor KM, Castellani MP, Bartlett PM, Oliver TE, McClung HL.
+// "Development and cross-validation of a circumference-based predictive equation
+//  to estimate body fat in an active population." Obes Sci Pract. 2024;e747.
+// DOI: 10.1002/osp4.747
+//
+// Unidades: CIRCUNFERÊNCIAS EM POLEGADAS, peso em kg.
+// As equações foram validadas em 1.904 militares (DXA como critério).
+// 1-sítio (só abdômen): RMSE ~3.4-4.1% — superior à equação tradicional do Exército.
+
+export type BFSites = 1 | 2 | 3;
+
+const CM_TO_IN = 0.393701;
+
+export function cmToInches(cm: number): number { return cm * CM_TO_IN; }
+export function inchesToCm(inches: number): number { return inches / CM_TO_IN; }
+
+interface BodyFatInput {
+  sex: 'M' | 'F';
+  abdomenCm: number;  // perímetro do abdômen ao nível do umbigo
+  weightKg: number;
+  hipCm?: number;      // ponto mais largo do quadril (necessário para 2 ou 3 sítios)
+  waistCm?: number;    // parte mais estreita da cintura (necessário para 3 sítios)
+}
+
+export interface BodyFatResult {
+  bodyFatPct: number;
+  sites: BFSites;
+  category: 'essencial' | 'atletico' | 'fitness' | 'aceitavel' | 'obeso';
+}
+
+/** Categoria de %BF para homens e mulheres (American Council on Exercise). */
+function bfCategory(pct: number, sex: 'M' | 'F'): BodyFatResult['category'] {
+  if (sex === 'M') {
+    if (pct < 6)  return 'essencial';
+    if (pct < 14) return 'atletico';
+    if (pct < 18) return 'fitness';
+    if (pct < 25) return 'aceitavel';
+    return 'obeso';
+  } else {
+    if (pct < 14) return 'essencial';
+    if (pct < 21) return 'atletico';
+    if (pct < 25) return 'fitness';
+    if (pct < 32) return 'aceitavel';
+    return 'obeso';
+  }
+}
+
+/**
+ * Estima %BF a partir de circunferências (Taylor et al. 2024).
+ * Usa automaticamente a equação de maior precisão disponível conforme as medidas.
+ */
+export function estimateBodyFat(input: BodyFatInput): BodyFatResult {
+  const abdomen = cmToInches(input.abdomenCm);  // polegadas
+  const weight = input.weightKg;                 // kg
+  const hip = input.hipCm ? cmToInches(input.hipCm) : null;
+  const waist = input.waistCm ? cmToInches(input.waistCm) : null;
+
+  let pct: number;
+  let sites: BFSites;
+
+  if (input.sex === 'M') {
+    if (abdomen && hip && waist) {
+      // 3-sítios: %BF = -38.32 + 2.23*abd + 0.68*hip - 0.43*waist - 0.16*weight
+      pct = -38.32 + 2.23 * abdomen + 0.68 * hip - 0.43 * waist - 0.16 * weight;
+      sites = 3;
+    } else if (abdomen && hip) {
+      // 2-sítios: %BF = -41.39 + 1.89*abd + 0.74*hip - 0.17*weight
+      pct = -41.39 + 1.89 * abdomen + 0.74 * hip - 0.17 * weight;
+      sites = 2;
+    } else {
+      // 1-sítio: %BF = -27.05 + 2.06*abd - 0.12*weight
+      pct = -27.05 + 2.06 * abdomen - 0.12 * weight;
+      sites = 1;
+    }
+  } else {
+    if (abdomen && hip && waist) {
+      // 3-sítios: %BF = -34.92 + 0.87*abd + 1.22*hip + 0.39*waist - 0.14*weight
+      pct = -34.92 + 0.87 * abdomen + 1.22 * hip + 0.39 * waist - 0.14 * weight;
+      sites = 3;
+    } else if (abdomen && hip) {
+      // 2-sítios: %BF = -31.68 + 1.09*abd + 1.18*hip - 0.12*weight
+      pct = -31.68 + 1.09 * abdomen + 1.18 * hip - 0.12 * weight;
+      sites = 2;
+    } else {
+      // 1-sítio: %BF = -8.06 + 1.25*abd - 0.004*weight
+      pct = -8.06 + 1.25 * abdomen - 0.004 * weight;
+      sites = 1;
+    }
+  }
+
+  // Sanitiza: %BF deve estar entre 3% e 60%
+  pct = Math.max(3, Math.min(60, pct));
+  pct = Math.round(pct * 10) / 10; // 1 casa decimal
+
+  return { bodyFatPct: pct, sites, category: bfCategory(pct, input.sex) };
+}
+
+export const BF_CATEGORY_LABEL: Record<BodyFatResult['category'], string> = {
+  essencial: 'Essencial',
+  atletico: 'Atlético',
+  fitness: 'Fitness',
+  aceitavel: 'Aceitável',
+  obeso: 'Acima do ideal',
+};
+
 // ─── Ajuste hormonal do BMR ──────────────────────────────────────────────────
 // Fontes:
 //   - Haluch, "Testosterona" (2020): AAS → ↑ síntese proteica, ↑ massa magra, ↑ TMB

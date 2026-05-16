@@ -21,7 +21,7 @@ export default async function EvolucaoPage() {
     <div>
       <h1 className="text-2xl font-bold mb-1">Evolução</h1>
       <p className="text-sm text-ink-400 mb-6">Peso, medidas e composição corporal.</p>
-      <EvolucaoClient userId={user.id} measurements={measurements} />
+      <EvolucaoClient userId={user.id} measurements={measurements} sex={user.sex as 'M' | 'F'} />
     </div>
   );
 }
