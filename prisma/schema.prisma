@@ -1,0 +1,280 @@
+// Diet Coach — schema.prisma
+// PostgreSQL (Neon) em produção; SQLite localmente via DATABASE_URL no .env
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────── USUÁRIO E PERFIL ───────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String?  @unique
+  birthDate     DateTime
+  sex           String   // "M" | "F"
+  heightCm      Float
+  // objetivo
+  goal          String   // "cut" | "maintain" | "bulk" | "recomp"
+  activityLevel String   // "very_sedentary" | "sedentary" | "light" | "moderate" | "active" | "very_active" | "extreme"
+  // perfil metabólico
+  insulinSens   String   @default("normal") // "high" | "normal" | "low"
+  dietPreset    String   @default("flexible") // "low_carb" | "low_fat" | "keto" | "cycling" | "flexible"
+  usingHormones Boolean  @default(false)
+  // metas calóricas
+  baseKcal      Int      // ex: 1200
+  cheatKcal     Int      // ex: 1800
+  // metas macro (gramas)
+  proteinGoalG  Int
+  carbGoalG     Int
+  fatGoalG      Int
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  measurements   Measurement[]
+  labResults     LabResult[]
+  meals          Meal[]
+  dailyPlans     DailyPlan[]
+  medications    Medication[]
+  medicationLogs MedicationLog[]
+  workouts       Workout[]
+  customFoods    Food[]
+}
+
+// ─────────────────────────────── EXAMES LABORATORIAIS ──────────────────────────
+
+model LabResult {
+  id             String   @id @default(cuid())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  date           DateTime @default(now())
+
+  // perfil hormonal (homem)
+  testTotal      Float?   // ng/dL — ref 250-1000
+  testFree       Float?   // pg/mL — ref 50-210
+  estradiol      Float?   // pg/mL — ref 10-50
+  dht            Float?   // ng/dL — ref 25-100
+  lh             Float?   // UI/L — ref 1.2-7.8
+  fsh            Float?   // UI/L — ref 1.4-15.4
+  prolactin      Float?   // ng/mL — ref 3-14.7
+  shbg           Float?   // nmol/L — ref 13.2-89.5
+
+  // sangue
+  hematocrit     Float?   // % — ref 42-52 (M) / 37-47 (F); alerta > 54
+  hemoglobin     Float?   // g/dL
+  glucoseFasting Float?   // mg/dL — ref 70-99
+  insulinFasting Float?   // µU/mL — ref < 4 (boa sensibilidade)
+  hba1c          Float?   // %
+
+  // lipídico
+  totalChol      Float?   // mg/dL — ref < 200
+  ldl            Float?   // mg/dL — ref < 100
+  hdl            Float?   // mg/dL — ref > 40
+  triglycerides  Float?   // mg/dL
+
+  // hepático/renal
+  ast            Float?   // U/L — ref < 37 (M) / < 31 (F)
+  alt            Float?   // U/L — ref < 41 (M) / < 31 (F)
+  ggt            Float?   // U/L
+  urea           Float?   // mg/dL — ref 15-45
+  creatinine     Float?   // mg/dL — ref 0.6-1.3 (M)
+  psa            Float?   // ng/mL — alerta > 4
+
+  // tireoide
+  tsh            Float?
+  t4Free         Float?
+  t3Free         Float?
+
+  notes          String?
+
+  @@index([userId, date])
+}
+
+// ─────────────────────────────── MEDIDAS / EVOLUÇÃO ─────────────────────────────
+
+model Measurement {
+  id           String   @id @default(cuid())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  date         DateTime @default(now())
+  weightKg     Float
+  bodyFatPct   Float?
+  waistCm      Float?
+  hipCm        Float?
+  chestCm      Float?
+  armCm        Float?
+  thighCm      Float?
+  notes        String?
+
+  @@index([userId, date])
+}
+
+// ─────────────────────────────── BANCO DE ALIMENTOS ─────────────────────────────
+
+model Food {
+  id           String  @id @default(cuid())
+  source       String  // "TACO" | "USDA" | "CUSTOM"
+  externalId   String? // ID original na fonte
+  name         String
+  category     String?
+  // valores POR 100 g
+  kcal         Float
+  protein      Float   // g
+  carb         Float   // g
+  fat          Float   // g
+  fiber        Float?  // g
+  saturatedFat Float?  // g
+  sodium       Float?  // mg
+  potassium    Float?  // mg
+  calcium      Float?  // mg
+  iron         Float?  // mg
+  magnesium    Float?  // mg
+  vitC         Float?  // mg
+  vitA         Float?  // µg
+  // unidade caseira padrão (ex: "1 colher de sopa" = 15g)
+  servingLabel String?
+  servingGrams Float?
+
+  // se for custom, pertence a um user
+  user         User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String?
+
+  mealItems        MealItem[]
+  substitutionsA   FoodSubstitution[] @relation("foodA")
+  substitutionsB   FoodSubstitution[] @relation("foodB")
+
+  @@index([name])
+  @@index([source])
+}
+
+// substituições: relaciona dois alimentos por critério (proteína, carbo, kcal)
+model FoodSubstitution {
+  id        String @id @default(cuid())
+  foodA     Food   @relation("foodA", fields: [foodAId], references: [id], onDelete: Cascade)
+  foodAId   String
+  foodB     Food   @relation("foodB", fields: [foodBId], references: [id], onDelete: Cascade)
+  foodBId   String
+  // base de equivalência: "kcal" | "protein" | "carb"
+  basis     String
+  // fator: quantos gramas de B equivalem a 1g de A nessa base
+  ratio     Float
+  note      String?
+
+  @@unique([foodAId, foodBId, basis])
+}
+
+// ─────────────────────────────── REFEIÇÕES (DIÁRIO) ─────────────────────────────
+
+model Meal {
+  id        String     @id @default(cuid())
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  date      DateTime   // data da refeição (apenas dia)
+  slot      String     // "breakfast" | "snack1" | "lunch" | "snack2" | "dinner" | "supper" | "cheat"
+  notes     String?
+  items     MealItem[]
+
+  @@index([userId, date])
+}
+
+model MealItem {
+  id       String @id @default(cuid())
+  meal     Meal   @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  mealId   String
+  food     Food   @relation(fields: [foodId], references: [id])
+  foodId   String
+  grams    Float  // quantidade consumida em gramas
+}
+
+// ─────────────────────────────── PLANO DIÁRIO / DIA-LIXO ─────────────────────────
+
+model DailyPlan {
+  id           String   @id @default(cuid())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  date         DateTime @unique // 1 plano por dia
+  isCheatDay   Boolean  @default(false)
+  kcalTarget   Int      // sobrescreve baseKcal/cheatKcal do user nesse dia
+  proteinG     Int
+  carbG        Int
+  fatG         Int
+  // ajuste compensatório (zigzag): kcal extra ou a menos vs base
+  delta        Int      @default(0)
+  notes        String?
+
+  @@index([userId, date])
+}
+
+// ─────────────────────────────── MEDICAMENTOS ──────────────────────────────────
+
+model Medication {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  name        String   // ex: "Mounjaro", "Testosterona", "T4 Levotiroxina"
+  category    String   // "glp1" | "hormone" | "vitamin" | "other"
+  doseAmount  Float    // ex: 2.5
+  doseUnit    String   // "mg" | "mcg" | "UI" | "ml" | "comp"
+  // frequência
+  frequency   String   // "daily" | "weekly" | "monthly" | "as_needed"
+  weekday     Int?     // 0-6 quando weekly (0 = domingo)
+  timeOfDay   String?  // "08:00"
+  startDate   DateTime
+  endDate     DateTime?
+  active      Boolean  @default(true)
+  notes       String?
+
+  logs        MedicationLog[]
+
+  @@index([userId, active])
+}
+
+model MedicationLog {
+  id           String   @id @default(cuid())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  medication   Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  medicationId String
+  takenAt      DateTime @default(now())
+  doseAmount   Float    // dose efetivamente aplicada (pode mudar p/ Mounjaro 2,5→5→7,5...)
+  doseUnit     String
+  notes        String?
+  // efeitos colaterais simples
+  sideEffects  String?
+
+  @@index([userId, takenAt])
+}
+
+// ─────────────────────────────── TREINO (FASE 2) ───────────────────────────────
+
+model Workout {
+  id        String       @id @default(cuid())
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  date      DateTime     @default(now())
+  name      String       // "Treino A — Peito/Tríceps"
+  duration  Int?         // minutos
+  notes     String?
+  sets      WorkoutSet[]
+
+  @@index([userId, date])
+}
+
+model WorkoutSet {
+  id         String  @id @default(cuid())
+  workout    Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  workoutId  String
+  exercise   String  // "Supino reto"
+  setNumber  Int
+  reps       Int
+  loadKg     Float?
+  rir        Int?    // reps in reserve
+  notes      String?
+}
