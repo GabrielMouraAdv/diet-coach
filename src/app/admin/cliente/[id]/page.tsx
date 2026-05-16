@@ -26,6 +26,7 @@ export default async function AdminClientPage({ params }: { params: Promise<{ id
         take: 30,
         include: { items: { include: { food: true } } },
       },
+      consultations: { orderBy: { scheduledAt: 'desc' } },
     },
   });
 

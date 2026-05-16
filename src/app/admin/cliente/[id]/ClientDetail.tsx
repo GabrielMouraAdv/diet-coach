@@ -1,13 +1,19 @@
 'use client';
 
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import type { User, Account, Measurement, Medication, MedicationLog, LabResult, Meal, MealItem, Food } from '@prisma/client';
-import { format } from 'date-fns';
+import type { User, Account, Measurement, Medication, MedicationLog, LabResult, Meal, MealItem, Food, Consultation } from '@prisma/client';
+import { format, addDays, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowLeft, User as UserIcon, Pill, Scale, FlaskConical, UtensilsCrossed, Target } from 'lucide-react';
+import {
+  ArrowLeft, User as UserIcon, Pill, Scale, FlaskConical, UtensilsCrossed, Target,
+  Calendar, CalendarPlus, Check, Trash2,
+} from 'lucide-react';
 import { yearsBetween, calcBMR, calcTDEE, detectHormonalProfile, calcHormonalBMRMultiplier } from '@/lib/nutrition';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { SIDE_EFFECT_LABELS } from '@/lib/presets/medications';
+import { scheduleConsultation, completeConsultation, deleteConsultation } from '@/app/actions/consultations';
 
 type ClientWithData = User & {
   account: Pick<Account, 'email' | 'createdAt'>;
@@ -15,11 +21,51 @@ type ClientWithData = User & {
   medications: (Medication & { logs: MedicationLog[] })[];
   labResults: LabResult[];
   meals: (Meal & { items: (MealItem & { food: Food })[] })[];
+  consultations: Consultation[];
 };
 
 interface Props { user: ClientWithData; }
 
 export function ClientDetail({ user }: Props) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState(format(addDays(new Date(), 30), "yyyy-MM-dd'T'HH:mm"));
+  const [scheduleType, setScheduleType] = useState<'inicial' | 'retorno' | 'ajuste' | 'avaliacao'>('retorno');
+  const [scheduleNotes, setScheduleNotes] = useState('');
+  const [editNotesId, setEditNotesId] = useState<string | null>(null);
+  const [completeNotes, setCompleteNotes] = useState('');
+
+  const handleSchedule = () => {
+    start(async () => {
+      await scheduleConsultation({ userId: user.id, scheduledAt: scheduleDate, type: scheduleType, notes: scheduleNotes });
+      setShowSchedule(false); setScheduleNotes('');
+      router.refresh();
+    });
+  };
+
+  const handleComplete = (id: string) => {
+    start(async () => {
+      await completeConsultation(id, completeNotes || undefined);
+      setEditNotesId(null); setCompleteNotes('');
+      router.refresh();
+    });
+  };
+
+  const handleDelete = (id: string) => {
+    if (!confirm('Excluir esta consulta?')) return;
+    start(async () => {
+      await deleteConsultation(id);
+      router.refresh();
+    });
+  };
+
+  const now = new Date();
+  const upcomingConsults  = user.consultations.filter(c => !c.completedAt && new Date(c.scheduledAt) >= now);
+  const pastConsults      = user.consultations.filter(c => c.completedAt).sort((a, b) => +new Date(b.completedAt!) - +new Date(a.completedAt!));
+  const lastConsult       = pastConsults[0];
+  const nextConsult       = upcomingConsults.sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt))[0];
+
   const age = yearsBetween(new Date(user.birthDate));
   const latest = user.measurements[0];
   const previous = user.measurements[1];
@@ -114,6 +160,125 @@ export function ClientDetail({ user }: Props) {
               <p className="font-medium text-xs capitalize">{user.insulinSens}</p>
             </div>
           </div>
+        </section>
+
+        {/* Consultas */}
+        <section className="card">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-sm flex items-center gap-2">
+              <Calendar size={15} /> Acompanhamento de consultas
+            </h2>
+            <button onClick={() => setShowSchedule(v => !v)} className="btn-primary text-xs flex items-center gap-1 py-1.5 px-2.5">
+              <CalendarPlus size={13} /> {showSchedule ? 'Cancelar' : 'Agendar'}
+            </button>
+          </div>
+
+          {/* Resumo: última e próxima */}
+          <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+            <div className="rounded-xl bg-ink-50 p-3">
+              <p className="text-xs text-ink-400">Última consulta</p>
+              {lastConsult ? (
+                <>
+                  <p className="font-bold">{format(new Date(lastConsult.completedAt!), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                  <p className="text-xs text-ink-500">há {differenceInDays(now, new Date(lastConsult.completedAt!))} dias · {lastConsult.type}</p>
+                </>
+              ) : <p className="text-ink-300 text-sm">Nenhuma realizada</p>}
+            </div>
+            <div className={`rounded-xl p-3 ${nextConsult ? 'bg-brand-50' : 'bg-yellow-50'}`}>
+              <p className="text-xs text-ink-400">Próxima consulta</p>
+              {nextConsult ? (
+                <>
+                  <p className="font-bold text-brand-700">{format(new Date(nextConsult.scheduledAt), "dd/MM 'às' HH:mm", { locale: ptBR })}</p>
+                  <p className="text-xs text-brand-700/70">em {differenceInDays(new Date(nextConsult.scheduledAt), now)} dias · {nextConsult.type}</p>
+                </>
+              ) : <p className="text-yellow-700 text-sm">⚠️ Não agendada</p>}
+            </div>
+          </div>
+
+          {/* Formulário de agendamento */}
+          {showSchedule && (
+            <div className="border-t pt-3 space-y-2 mb-3">
+              <p className="text-xs font-semibold text-ink-600">Agendar nova consulta</p>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="datetime-local" className="input text-sm" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} min={format(now, "yyyy-MM-dd'T'HH:mm")} />
+                <select className="input text-sm" value={scheduleType} onChange={e => setScheduleType(e.target.value as typeof scheduleType)}>
+                  <option value="retorno">Retorno</option>
+                  <option value="inicial">Consulta inicial</option>
+                  <option value="ajuste">Ajuste de plano</option>
+                  <option value="avaliacao">Avaliação física</option>
+                </select>
+              </div>
+              <textarea
+                className="input text-sm" rows={2}
+                value={scheduleNotes} onChange={e => setScheduleNotes(e.target.value)}
+                placeholder="Observações (opcional): pauta da consulta, lembrete de exames..."
+              />
+              <button onClick={handleSchedule} disabled={pending || !scheduleDate} className="btn-primary text-sm w-full py-1.5">
+                {pending ? 'Agendando...' : 'Confirmar agendamento'}
+              </button>
+            </div>
+          )}
+
+          {/* Lista de consultas futuras */}
+          {upcomingConsults.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs font-semibold text-ink-500 mb-2">Agendadas</p>
+              <div className="space-y-1.5">
+                {upcomingConsults.map(co => (
+                  <div key={co.id} className="flex items-center justify-between rounded-lg border border-brand-200 bg-brand-50/40 p-2.5 text-sm">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium">{format(new Date(co.scheduledAt), "EEE, dd 'de' MMM 'às' HH:mm", { locale: ptBR })}</p>
+                      <p className="text-xs text-ink-500 capitalize">{co.type}{co.notes && ` · ${co.notes}`}</p>
+                    </div>
+                    <div className="flex gap-1">
+                      {editNotesId === co.id ? (
+                        <div className="flex flex-col gap-1">
+                          <textarea
+                            value={completeNotes} onChange={e => setCompleteNotes(e.target.value)}
+                            className="input text-xs" rows={2}
+                            placeholder="Notas da consulta..."
+                          />
+                          <div className="flex gap-1">
+                            <button onClick={() => handleComplete(co.id)} disabled={pending} className="btn-primary text-xs py-1 px-2 flex-1">Salvar</button>
+                            <button onClick={() => setEditNotesId(null)} className="btn-ghost text-xs py-1 px-2">×</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <button onClick={() => { setEditNotesId(co.id); setCompleteNotes(co.notes ?? ''); }} title="Marcar realizada" className="p-1.5 rounded hover:bg-brand-100 text-brand-700">
+                            <Check size={14} />
+                          </button>
+                          <button onClick={() => handleDelete(co.id)} title="Excluir" className="p-1.5 rounded hover:bg-red-50 text-red-500">
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Histórico de consultas realizadas */}
+          {pastConsults.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-ink-500 mb-2">Histórico ({pastConsults.length})</p>
+              <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                {pastConsults.map(co => (
+                  <div key={co.id} className="rounded-lg border border-ink-200 p-2.5 text-sm">
+                    <p className="font-medium">{format(new Date(co.completedAt!), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</p>
+                    <p className="text-xs text-ink-500 capitalize">{co.type}</p>
+                    {co.notes && <p className="text-xs text-ink-600 mt-1 italic">{co.notes}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {user.consultations.length === 0 && !showSchedule && (
+            <p className="text-sm text-ink-400 text-center py-3">Nenhuma consulta registrada. Clique em <strong>Agendar</strong> para começar.</p>
+          )}
         </section>
 
         {/* Metas */}

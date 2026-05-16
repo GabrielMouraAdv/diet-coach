@@ -14,13 +14,14 @@ datasource db {
 // ─────────────────────────────── AUTH ───────────────────────────────────────────
 
 model Account {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String
-  role         String    @default("client") // "admin" | "client"
-  createdAt    DateTime  @default(now())
-  profile      User?
-  invitesSent  Invite[]  @relation("inviteCreator")
+  id                  String         @id @default(cuid())
+  email               String         @unique
+  passwordHash        String
+  role                String         @default("client") // "admin" | "client"
+  createdAt           DateTime       @default(now())
+  profile             User?
+  invitesSent         Invite[]       @relation("inviteCreator")
+  consultationsByMe   Consultation[] @relation("consultationCreator")
 }
 
 model Invite {
@@ -75,6 +76,26 @@ model User {
   medicationLogs MedicationLog[]
   workouts       Workout[]
   customFoods    Food[]
+  consultations  Consultation[]
+}
+
+// ─────────────────────────────── CONSULTAS / ACOMPANHAMENTO ────────────────────
+
+model Consultation {
+  id           String    @id @default(cuid())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  scheduledAt  DateTime
+  completedAt  DateTime?
+  type         String    @default("retorno") // "inicial" | "retorno" | "ajuste" | "avaliacao"
+  notes        String?
+  createdBy    Account   @relation("consultationCreator", fields: [createdById], references: [id])
+  createdById  String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId, scheduledAt])
+  @@index([scheduledAt])
 }
 
 // ─────────────────────────────── EXAMES LABORATORIAIS ──────────────────────────
