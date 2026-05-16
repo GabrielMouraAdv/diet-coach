@@ -6,7 +6,8 @@ import type { User, Account, Measurement, Invite } from '@prisma/client';
 import { createInviteAction, logoutAction } from '@/app/actions/auth';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Plus, Copy, Check, LogOut, Users, Clock, Link } from 'lucide-react';
+import { Plus, Copy, Check, LogOut, Users, Clock, Link as LinkIcon, ChevronRight } from 'lucide-react';
+import NextLink from 'next/link';
 
 type ClientWithRelations = User & {
   account: Pick<Account, 'email' | 'createdAt'>;
@@ -116,7 +117,7 @@ export function AdminDashboard({ clients, pendingInvites }: Props) {
 
               {newInviteUrl && (
                 <div className="rounded-xl bg-brand-50 border border-brand-200 p-3 space-y-2">
-                  <p className="text-xs font-semibold text-brand-700 flex items-center gap-1"><Link size={12} /> Link gerado! Válido por 7 dias.</p>
+                  <p className="text-xs font-semibold text-brand-700 flex items-center gap-1"><LinkIcon size={12} /> Link gerado! Válido por 7 dias.</p>
                   <div className="flex gap-2">
                     <input className="input text-xs flex-1 bg-white" value={newInviteUrl} readOnly />
                     <button onClick={() => copyUrl(newInviteUrl)} className={`btn text-xs px-3 py-2 ${copied ? 'bg-brand-600 text-white' : 'bg-white border'}`}>
@@ -165,29 +166,36 @@ export function AdminDashboard({ clients, pendingInvites }: Props) {
               {clients.map(c => {
                 const lastMeasure = c.measurements[0];
                 return (
-                  <div key={c.id} className="flex items-center justify-between py-3 border-b last:border-0">
+                  <NextLink
+                    key={c.id}
+                    href={`/admin/cliente/${c.id}`}
+                    className="flex items-center justify-between py-3 border-b last:border-0 hover:bg-brand-50/40 -mx-2 px-2 rounded-lg transition-colors group"
+                  >
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold text-sm">
                         {c.name.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <p className="font-medium text-sm">{c.name}</p>
+                        <p className="font-medium text-sm group-hover:text-brand-700">{c.name}</p>
                         <p className="text-xs text-ink-400">
                           {c.account.email} · Desde {format(new Date(c.account.createdAt), 'dd/MM/yyyy', { locale: ptBR })}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right text-xs text-ink-500">
-                      {lastMeasure ? (
-                        <>
-                          <p className="font-medium">{lastMeasure.weightKg} kg</p>
-                          <p className="text-ink-400">{format(new Date(lastMeasure.date), 'dd/MM', { locale: ptBR })}</p>
-                        </>
-                      ) : (
-                        <p className="text-ink-300">sem medida</p>
-                      )}
+                    <div className="flex items-center gap-2">
+                      <div className="text-right text-xs text-ink-500">
+                        {lastMeasure ? (
+                          <>
+                            <p className="font-medium">{lastMeasure.weightKg} kg</p>
+                            <p className="text-ink-400">{format(new Date(lastMeasure.date), 'dd/MM', { locale: ptBR })}</p>
+                          </>
+                        ) : (
+                          <p className="text-ink-300">sem medida</p>
+                        )}
+                      </div>
+                      <ChevronRight size={16} className="text-ink-300 group-hover:text-brand-600" />
                     </div>
-                  </div>
+                  </NextLink>
                 );
               })}
             </div>
