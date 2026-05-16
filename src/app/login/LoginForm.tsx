@@ -64,7 +64,7 @@ export function LoginForm({ searchParams }: { searchParams: Promise<{ next?: str
       </button>
 
       <p className="text-center text-xs text-ink-400">
-        Novo por aqui? Use o link de convite enviado pelo seu coach.
+        Novo por aqui? Use o link de convite enviado.
       </p>
     </form>
   );
